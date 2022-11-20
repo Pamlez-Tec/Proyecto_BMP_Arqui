@@ -1,0 +1,66 @@
+imprimir Macro letra
+    mov ah, 9
+    mov dx, offset letra
+    int 21h
+endm
+
+pushDs MACRO
+    mov ax, ds
+    push ax
+ENDM
+
+cerrarArchivo MACRO archivo
+    mov ah, 3eh
+    mov bx, archivo
+    int 21h ;Cerrar Archivo
+ENDM
+
+Finaliza Macro
+    mov ax ,4c00h
+    int 21h
+endM
+
+InicializarSegmento Macro datos
+    xor ax,ax
+    mov ax, datos
+    mov ds,  ax  
+endM
+
+compareColor macro colorNum, charCode, siguiente
+    cmp al, colorNum
+    jne siguiente
+    xor ax, ax
+    mov al, charCode
+    jmp salirGC
+    
+endm
+
+ModoGrafico Macro
+    mov ah, 00h ;Poner en modo gráfico
+    mov al, 12h ;640 x 480 16 colores (VGA)
+    int 10h
+endM
+
+movReadPointer MACRO handler, control
+    mov ah, 42h
+    mov al, 0
+    mov bx, handler
+    xor cx, cx
+    mov dx, control
+    int 21h
+    
+ENDM
+
+primerPixel MACRO color, control
+    and ah,11110000b
+    shr ah, 4
+    mov color, ah
+    inc control
+ENDM
+
+segundoPixel MACRO color
+    pop ax
+    and ah,00001111b
+    mov color, ah
+ENDM
+
