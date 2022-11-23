@@ -5,8 +5,15 @@ Assume cs:CODIGO, ds:DATOS      ;Le indicamos cual registro pertenece un segment
 DATOS segment                   ;Inicio del segmento de datos
 
 ;NOMBRE DE LA IMAGEN POR DEFECTO y NOMBRE DEL ARCHIVO TXT PARA EL ART ASCII
-archivo db "playa.bmp",0        ;BMP debe estar en carpeta BIN
+default_ db 'peri.bmp', 0       ;Imagen por defecto
+archivo db 20 dup("a"), 0       ;variable donde se guardara el nombre del archivo que se ingrese como parametro
 artAscii db "art.txt",0         ;Nombre del archivo por crear
+controlDefault db 0             ;Variable que controla si se ingresa o no el nombre de un archivo, "0" si y "1" no
+
+cantidadLC dw 0                 ;Variable que me indica la longitud de la LC
+controlAscii dw 0               ;Variable que me indica "0" si no se debe guardar en ascii y "1" si se debe guardar 
+LineCommand db 0FFh Dup (?)     ;Aqui se guarda el contenido de la linea de comandos
+linea db 20 dup("$"), "$"       ;Para guardar la LC de manera mas controlada
 
 ;Variables necesarias para representar la imagen
 inicioDatos dw 0                ;Donde inician los datos del BMP, se toma del header, de leer el archivo BMP
@@ -56,7 +63,7 @@ ayuda  db "                                               ", 10,13,
 
 DATOS ends ;Final del segmento de datos
 
-codigo segment ;Inicio del segmento de codigo
+Codigo segment ;Inicio del segmento de codigo
 
 ;Params: color
 ;Devuele en al: byte por escribir
@@ -158,14 +165,14 @@ endp
 
 ;Params: ds, offset archivo, offset handler, offset msgError1
 AbrirArchivo proc
-    mov ah, 3dh             ;Asiganamos a ah el codigo para abrir un fichero
-    mov al, 0               ;Indicar que abrimos en modo lectura
-    mov dx, offset archivo  ;Sacamos el desplazamiento del archivo a leer
-    int 21h                 ;Ejecutamos la ineterrupcion para abrir el archivo
-    jc  errorAbrir          ;Si hay un error la bandera del carry se activa y salta a la etiqueta "errorAbrir"
-    mov handler, ax         ;Si todo esta bien, en ax estaria el manejador del archivo
-    ret                     ;Devolvemos control a SO
-    errorAbrir:             ;Etiqueta que llama a una macro y devuelve el control al SO
+    cmp controlDefault, 0        ;Si no se ingresaron parametros en LC, variable inc en 1 entonces se debe trabajar con la imagen default
+    jz abrirOtroArchivo          ;Si se ingresa el nombre de la imagen, control se mantiene en 0 y salta a la etiqueta
+    abrirBMP default_            ;Si no se ingresan parametros, se abre el bmp default
+    ret                          ;Devolvemos control a SO
+    abrirOtroArchivo:            ;Etiqueta que llama a una macro que abre el bmp ingresado
+        abrirBMP archivo         ;Macro que abre el bmp ingresado por LC
+        ret
+    errorAbrir:
         imprimir msgError1  ;Macro que recibe como parametro el mensaje de error, que no puede abrir un archivo
         Finaliza
 endp
@@ -191,8 +198,7 @@ LeerArchivo proc
         mov ah, 3eh         ;Se pasa a ah el comando para cerrar el archivo
         mov bx, handler 
         int 21h             ;Se ejecuta la interrupcion para que vaya y lea ah y cierre el archivo
-        mov ah, 01h         ;Para esperar que ingrese una tecla
-        int 21h
+        ingresarTecla       ;Macro que espera a que ingresemos una tecla
         ;Ponemos en modo texto
         mov ah, 00h         ;Poner en modo texto
         mov al, 03h         ;80x25x16 texto
@@ -298,59 +304,129 @@ AnchoIMG proc
         ret
 endp
 
-;Prodimeinto que pinta un pixel de un color, en modo grafico
+;Procedimiento que pinta un pixel de un color, en modo grafico
 PintarPixel proc 
     xor ax, ax              ;Limpiamos registro 
     xor dx, dx              ;Limpiamos registro
-    mov ah, 0ch             ;escribe un pixel
-    mov al, color; 
-    mov dx,largo            ;en la largo 17
-    mov cx, ancho
-    xor bh,bh
+    ;La funcion necesita en ah la funcion que se va a utilizar, en al el color, en dx el "y" y en cx el "x" (coordenadas), donde se va a pintar
+    mov ah, 0ch             ;Para escribir un pixel en una coordenada dada. VGA 8 pag
+    mov al, color           ;le pasamos a al el color que debe pintar en pantalla 
+    mov dx,largo            ;la coordenada "y" "fila"
+    mov cx, ancho           ;la coordenada "x" "columna"
+    xor bh,bh               ;La pagina activa, la 0
     int 10h                 ;Inturrumpcion para pintar el pixel
-    inc ancho
+    inc ancho               ;Movemos la columna, para que el proximo pixel se imprima a la par
     
     xor ax, ax
     pushDs
     xor ax, ax
-    mov al, color
+    mov al, color           
     push ax
     push handleart
     lea ax, charimp
     push ax
     call PintarAscii
-    call AnchoIMG
+    call AnchoIMG          ;Procedimiento para saber si ya se llego al ancho de la imagen. Para que haga el ajuste
     ret
 
 endP
 
 ;Funcion que guarda pixel optimo para desplegar y salta a etiqueta para pintar pixel
 ImprimirPixel proc
-    xor ax, ax              ;Limpia ax
-    mov ah, letra           ;Guarda pixel en la parte alta del registro ax
-    push ax                 ;Mete en la pila ax para guardar el pixel 
-    jmp Grafico             ;Salta a la etiqueta para pintar el pixel
+    xor ax, ax                      ;Limpia ax
+    mov ah, letra                   ;Guarda pixel en la parte alta del registro ax
+    push ax                         ;Mete en la pila ax para guardar el pixel 
+    jmp Grafico                     ;Salta a la etiqueta para pintar el pixel
 endP
 
 ;En esta etiqueta se pintan los pixeles del byte del archivo.
 Grafico proc
     ;Primer pixel
-    primerPixel color, control
+    primerPixel color, control      ;Macro que guarda el color a pintar e incrementa el control del siguiente byte de la imagen.  
 
     ;Pinta primer pixel
-    call PintarPixel
+    call PintarPixel                ;Procedimiento que toma el color de la variable "color" y lo grafica segun coordenada dada por el ancho y el largo
 
     ;Segundo pixel
-    segundoPixel color
+    segundoPixel color              ;Saca el segundo color, no incrementa el control del pixel porque se le debe sacar los dos colores antes de seguir con el siguiente
     ;Pinta segundo pixel
-    call PintarPixel
-    jmp Leer
+    call PintarPixel                ;Vuelve a llamar al procedimiento que pinta el pixel, pero ahora con el segundo color
+    jmp Leer                        ;Sigue con el siguiente byte del bmp
     ret 
 endP
 
+GetCommanderLine proc
+    LongLC EQU 80h                  ;Constante que guarda la longitud de la linea de comandos.
+    Mov Bp,Sp                       
+    Mov Ax,Es                       ;En el ES (Extrasegment) al iniciar el programa viene en la posicion 80h: El numero de caracteres escrito en la linea de commandos despues del nombre del programa
+    Mov Ds,Ax
+    Mov Di,2[Bp]
+    Mov Ax,4[Bp]
+    Mov Es,Ax
+    Xor cx,cx
+    Mov cl,Byte Ptr Ds:[LongLC]     ;Mueve la Longitud de la linea de comandos al cl (incluyendo el espacio)
+    dec cl                          ;Le quita uno para quitar el espacio entre la llamamda y los argumentos en la linea de comandos
+    mov bx, cx                      ;Guardamos en bx la longitud, para utilizarla luego
+    Mov Si,2[LongLC]                ;Mueve el 82h (que es donde comienzan los caracteres de la linea de comandos) al source index
+    cld
+    Rep Movsb                       ;Movsb: Mueve el byte del Segmento de datos en la posicion que indica el si hacia el segmento extra en la posicion que indica el di      Despues le suma uno a los dos indices (si y di)
+    Ret 2*2                         ; pop de linea de comando seg y offset.
+endP
+
+sinParametros:
+    inc controlDefault
+    jmp Inicio
+
+LineaComandos_ proc
+    LineaCM datos, LineCommand, cantidadLC ;Macro que obtiene la linea de comandos y guarda en variable cantidadLC su longitud
+
+    guardarLC:                             ;Guarda en linea, lo que tiene la linea de comandos.
+        xor ax, ax                         ;limpiamos ax para utilizarlo para guardar el caracter
+        mov al, LineCommand[si]            ;Movemos el caracter de la LC de la posicion indicada en si a al.
+        mov linea[si], al                  ;Guardamos en variable linea el caracter
+        inc si                             ;Nos movemos a la siguiente posicion
+        loop guardarLC                     ;Ejecutamos hasta terminar la linea de comandos
+
+    setRegistros                           ;Macro que limpia si, di y coloca de nuevo la longitud de la LC en cx            
+
+    comparacionInicial                     ;Macro que compara las posiciones iniciales de la LC. Se especifica en macroBMP.bmp
+
+    AsignarAscii:                          ;Incrementa variable control ascii y compara posiciones. Se especifica en macroBMP.bmp
+        asignaYComparaAscii
+
+    setValorCx:                            ;Si luego de alguna instruccion /? o /A esta el nombre del archivo
+        setValor2                          ;Lo que hace es restar la longitud de la linea de comandos (/A /?) para situarse exactamente en la poscicion donde esta el nombre de la imagen
+                                           ;y poder guardarlo en una variable
+    setValor:                              ;Inc si y disminuye la longitud de la LC para situarse en la posicion exacta del nombre y llama a nombre de la imagen
+        setValorConIncremento
+endP
+
+NombreDeLaImagen:                           ;Se pasa a la variable archivo que guarda el nombre del bmp a abrir
+    cmp cx, 0                               ;Si la longitud de la LC llego a su fin   
+    jz Inicio                               ;Si comparacion anterior es = inicia con el programa
+    xor ax, ax
+    mov al, linea[si]                       ;si esta situada en la posicion exacta donde inicia el nombre, por lo que se obtiene la primera letra
+    mov archivo[di], al                     ;se pasa la variable archivo que se utilizara para abrir el bmp
+    inc si                                  ;Nos movemos a la siguiente letra
+    inc di                                  ;Nos situamos en la siguiente posicion
+    dec cx                                  ;Decrementamos en 1 cx
+    jmp NombreDeLaImagen                    ;Volvemos a ejecutar el ciclo hasta que cx sea 0 y salte a inicio del programa
+
+ImprimirMensajeAyuda proc                  
+    inc si                                  ;Incrementamos si para comparar si hay mas parametros en la LC
+    imprimir ayuda                          ;Aqui imprimir la ayuda y esperar una tecla para continuar.
+    ingresarTecla                           ;Espera una tecla para continuar con el programa
+    limpiarPantalla                         ;Limpia pantalla
+    cmp cantidadLC, si                      ;Hace la comparacion si hay mas parametros en la LC
+    jg setValor                             ;Si hay mas parametros, indica que se ingreso el nombre un archivo BMP
+    ret                                     
+endP
+
+LineaC:
+    call LineaComandos_                     ;Llama al procedimiento que obtiene la linea de comando
+
 ;Etiqueta en donde inicia el programa, se define al final.
 Inicio:
-    InicializarSegmento datos       ;Llama a la macro que inicializa el segmento de datos
     call AbrirArchivo               ;Llama al procedimiento que abre un archivo
     pushDs
     push offset artAscii    
@@ -361,6 +437,5 @@ Inicio:
     movReadPointer handler, control 
     call Leer                       ;Llamamos al procedimiento que lee el archivo BMP
 
-codigo ends
-
-end Inicio
+Codigo EndS                         ;Fin del segmento de codigo
+End LineaComandos_                  ;Fin del programa e indica donde debe iniciar
