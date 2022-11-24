@@ -19,7 +19,7 @@ limpiarPantalla macro
     mov ah, 0fh         
     int 10h
     mov ah, 0           
-    int 10h
+    int 10h     
 endM
 
 ;Se hacen las comparaciones de la letra segun lo ingresado en la linea de comanods. Si la primera letra no cumple con un / quiere decir que es el nombre del archivo y salta
@@ -121,11 +121,11 @@ InicializarSegmento Macro datos
 endM
 
 compareColor macro colorNum, charCode, siguiente
-    cmp al, colorNum
-    jne siguiente
-    xor ax, ax
-    mov al, charCode
-    jmp salirGC
+    cmp al, colorNum    ;Compara el color code del al con el color code del color actual
+    jne siguiente       ;Si no son iguales sigue al siguiente color
+    xor ax, ax          ;Si son iguales, limpia el ax
+    mov al, charCode    ;Pone el caracter ascii asignado en el al
+    jmp salirGC         ;Salta a escribir el caracter
     
 endm
 
@@ -136,11 +136,11 @@ ModoGrafico Macro
 endM
 
 movReadPointer MACRO handler, control
-    mov ah, 42h
-    mov al, 0
-    mov bx, handler
-    xor cx, cx
-    mov dx, control
+    mov ah, 42h         ;Pone el ah en 42h (set file pointer)
+    mov al, 0           ;Pone el al en 0 -> poner el file pointer al inicio del file
+    mov bx, handler     ;Pone el handler en el bx 
+    xor cx, cx          ;Se limpia el cx porque el puntero se va a mover la posicion indicada por cx:dx
+    mov dx, control     ;Se mueve el control, es decir la posicion deseada al dx
     int 21h   
 ENDM
 
