@@ -304,7 +304,7 @@ AnchoIMG proc
         ret
 endp
 
-;Procedimiento que pinta un pixel de un color, en modo grafico
+;Procedimiento que pinta un pixel de un color, en modo grafico y pinta una ascii en el archivo art.txt
 PintarPixel proc 
     xor ax, ax              ;Limpiamos registro 
     xor dx, dx              ;Limpiamos registro
@@ -317,16 +317,16 @@ PintarPixel proc
     int 10h                 ;Inturrumpcion para pintar el pixel
     inc ancho               ;Movemos la columna, para que el proximo pixel se imprima a la par
     
-    xor ax, ax
+    xor ax, ax              ;Limpia el ax
     
-    pushDs
-    xor ax, ax
-    mov al, color           
-    push ax
-    push handleart
-    lea ax, charimp
-    push ax
-    call PintarAscii
+    pushDs                  ;Hace push del ds
+    xor ax, ax              ;Limpia el ax
+    mov al, color           ;Mueve el color por imprimir al al
+    push ax                 ;Guarda el ax en pila
+    push handleart          ;Guarda el handle del archivo ascii
+    lea ax, charimp         ;Pone el offset de charimp (la variable con el caracter por imprimir) en el ax
+    push ax                 ;Guarda en pila el offset de charimp
+    call PintarAscii        ;Escribe un ascii al archivo segun el color del pixel por imprimir
     call AnchoIMG          ;Procedimiento para saber si ya se llego al ancho de la imagen. Para que haga el ajuste
     ret
 
