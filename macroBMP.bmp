@@ -1,0 +1,185 @@
+imprimir Macro letra
+    mov ah, 09h             ;Funcion para imprimir en pantalla
+    mov dx, offset letra    ;Indicamos el desplazamiento de la letra 
+    int 21h                 
+endm
+
+setRegistros macro
+    xor si, si              ;Limpiamos registros si y di
+    xor di, di
+    mov cx, bx              ;Movemos la longitud de la Linea de Comandos a cx
+endM
+
+ingresarTecla macro
+    mov ah, 01h         ;Funcion que esperar que se ingrese una tecla
+    int 21h
+endM
+
+limpiarPantalla macro
+    mov ah, 0fh         
+    int 10h
+    mov ah, 0           
+    int 10h
+endM
+
+;Se hacen las comparaciones de la letra segun lo ingresado en la linea de comanods. Si la primera letra no cumple con un / quiere decir que es el nombre del archivo y salta
+;A la etiqueta que comienza a guardar el nombre del archivo
+comparacionInicial macro    
+    cmp LineCommand[si], '/'
+    jne nombreDeLaImagen
+    inc si 
+    cmp LineCommand[si], 'A'
+    jz AsignarAscii
+    cmp LineCommand[si], 'a'
+    jz AsignarAscii
+    cmp LineCommand[si], '?'
+    jz ImprimirMensajeAyuda
+    cmp LineCommand[si], 'h'
+    jz ImprimirMensajeAyuda
+    cmp LineCommand[si], 'H'
+    jz ImprimirMensajeAyuda
+    setRegistros                ;Si nada de esto se cumple, se setean los registros y se considera que es el nombre de un archivo entonces saltamos a guardar el nombre
+    jmp nombreDeLaImagen
+endM
+
+asignaYComparaAscii macro
+    inc si                  ;Incremento la posicion para saber si hay mas parametros en la LC
+    inc controlAscii        ;Indicamos que queremos que se haga artascii
+    cmp cantidadLC, si      ;Comparamos si hay mas parametros
+    jz Inicio               ;Si la cantidad de parametros es igual a la posicion actual del si, entonces quiere decir que llegamos al final del LC  y comenzamos el programa
+    inc si                  ;Si no se cumple, se incrementa la posicion y se inician las comparaciones para saber si lo ingresado es el nombre del programa o el comando para imprimir ayuda
+    cmp LineCommand[si], '/'
+    jne setValorCx
+    inc si 
+    cmp LineCommand[si], '?'
+    jz ImprimirMensajeAyuda
+    cmp LineCommand[si], 'h'
+    jz ImprimirMensajeAyuda
+    cmp LineCommand[si], 'H'
+    jz ImprimirMensajeAyuda
+
+endM
+
+setValorConIncremento macro     ;Incrementa la posicion, disminuye la longitud de la linea de comandos que actualmente esta en cx, le disminuye las primeras letras leidas
+    inc si
+    sub cx, si                  ;Para situarse en la posicion donde inicia el nombre del archivo
+    jmp nombreDeLaImagen        
+endM
+
+abrirBMP macro archivo_
+    mov ah, 3dh             ;Asiganamos a ah el codigo para abrir un fichero
+    mov al, 0               ;Indicar que abrimos en modo lectura
+    mov dx, offset archivo_  ;Sacamos el desplazamiento del archivo a leer
+    int 21h                 ;Ejecutamos la ineterrupcion para abrir el archivo
+    jc  errorAbrir          ;Si hay un error la bandera del carry se activa y salta a la etiqueta "errorAbrir"
+    mov handler, ax 
+endM
+
+LineaCM macro datos, LineCommand, cantidadLC
+    Xor Ax,Ax       
+    Mov Ax,datos
+    Mov DS,Ax               ;Inicializamos sg datos
+    push ds                 ;Mete en pila el ds que ya apunta al segmento de datos
+    Mov Ax,Seg LineCommand  ; sp + 4 //Espacio
+    Push Ax                 ;Guardamos en pila 
+    Lea Ax,LineCommand      ; sp + 2
+    Push Ax
+    call GetCommanderLine   ; sp ;llamamos al procedimiento
+    pop ds                  ;Asignamos de nuevo el segmento de datos
+    cmp bx, 255             ;Para saber si no hay parametros
+    jz sinParametros        ;Si comparacion anterior es igual, quiere decir que no hay parametros y salta a la etiqueta indicada
+    mov cantidadLC, bx      ;Guardo la longitud de la LC en una variable
+    mov cx, bx              ;Para utilizarlo como controlador del ciclo. Cx tiene longitud LC
+    xor si,si               ;Limpiamos para usarlo como indice
+endM
+
+setValor2 macro
+    sub cx, si              ;Para posicionarnos en el nombre del archivo
+    jmp nombreDeLaImagen
+endM
+
+pushDs MACRO
+    mov ax, ds
+    push ax
+ENDM
+
+cerrarArchivo MACRO archivo
+    mov ah, 3eh
+    mov bx, archivo
+    int 21h ;Cerrar Archivo
+ENDM
+
+Finaliza Macro
+    mov ax ,4c00h
+    int 21h
+endM
+
+InicializarSegmento Macro datos
+    xor ax,ax
+    mov ax, datos
+    mov ds,  ax  
+endM
+
+compareColor macro colorNum, charCode, siguiente
+    cmp al, colorNum
+    jne siguiente
+    xor ax, ax
+    mov al, charCode
+    jmp salirGC
+    
+endm
+
+ModoGrafico Macro
+    mov ah, 00h         ;Poner en modo gráfico
+    mov al, 12h         ;640 x 480 16 colores (VGA)
+    int 10h
+endM
+
+movReadPointer MACRO handler, control
+    mov ah, 42h
+    mov al, 0
+    mov bx, handler
+    xor cx, cx
+    mov dx, control
+    int 21h   
+ENDM
+
+;And es una mascara que si se tiene un uno abajo, deja pasar el resultado
+primerPixel MACRO color, control    ;54 -->> 50 -->>05
+    and ah,11110000b    ;Sacamos el primer color
+    shr ah, 4           ;corrimiento a la derecha  para sacar el numero que es
+    mov color, ah
+    inc control
+ENDM
+
+segundoPixel MACRO color
+    pop ax              ;Sacamos el ax donde estan los dos colores
+    and ah,00001111b    ;Segundo color del byte, no le hacemos corrimiento ya queda correcto
+    mov color, ah
+ENDM
+
+LineaComandoInicio Macro datos
+    InicializarSegmento datos              
+    Push ds                     ;Mete en pila el ds que ya apunta al segmento de datos
+    Mov Ax,seg LineCommand      ; 
+    Push Ax                     ;Guardamos
+    Lea Ax,LineCommand          ; sp + 2  
+    Push Ax
+    call GetCommanderLine       ;Obtenemos la linea de comandos 
+    pop ds                      ;Asisgnamos segmento de datos
+    xor si,si                   ;Limpiamos para usarlo como indice en la linea de comandos
+endM
+
+
+LineaComandosAyuda macro 
+    cmp LineCommand[si], '/'     ;/
+    jne salga2                      ;Si no es un "/" entonces, nos podria indicar que es el nombre del archivo
+    inc si                          ;Que se mueva a la siguiente posicion 
+    cmp LineCommand[si], '?'     ;?
+    jz ImprimirMensajeMacro
+    cmp LineCommand[si], 'h'     ;h
+    jz ImprimirMensajeMacro
+    cmp LineCommand[si], 'H'     ;H
+    jz ImprimirMensajeMacro
+    jmp AsignarASCII
+endM
