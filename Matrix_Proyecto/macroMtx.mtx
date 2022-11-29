@@ -1,0 +1,148 @@
+                                        ;Utilizamos registros para el color y el ascii
+pintarDi macro color        
+    mov bh, color                       ;Movemos a la parte alta del registro bx, el color que vamos que vamos a utilizar para pintar el caracter
+    mov al, asciiControl                ;Movemos a la parte baja de al la letra que vamos a pintar
+    mov es:[di], al                     ;Cargamos lo que tiene la direccion del monitor en la posicion indicada por di, con el ascii asignado anteriormente
+    push di                             ;Guardamos posicion 
+    inc di                              ;Incrementadmos la poscion porque justo en el byte siguiente es donde se indica el color
+    mov es:[di], bh                     ;Cargamos el color 
+    pop di                              ;Obtenemos posicion inicial
+endM
+
+inicializarSD macro                     ;Inicializamos segmento de datos
+    mov ax, datos                   
+    mov ds, ax
+endM
+
+inicializarVideo macro
+    mov ax, 0B800h                      ;Movemos al registro ax la posicion B800 donde apunta el monitor. Se pone un 0 al inicio xq si no se confunde
+    mov es, ax                          ;Cargamos en es la posicion en donde inicia la memoria de video. Donde apunta el monitor
+endM
+
+limpiarP macro
+    xor di, di                          ;Limpiamos di para usarlo como indice
+    mov cx, 26                          ;Movemos la cantidad de veces que debe hacer el ciclo
+    mov si, offset text                 ;Movemos el desplazamiento de la variable texto
+    mov di, 0                           ;Indicamos la posicion en donde debe inicial los caracteres
+
+    OtroCaracter:
+        lodsb                           ;Trasfiere la letra que vaya indicando el si al al. Si tiene el offset de texto, se va movienod entre esta variable trasfiriendo byte a byte al al
+        mov es:[di], al                 ;Al tiene la letra a imprimir, se la pasa a la direccion del monitor indicada
+        inc di                          ;Incrementamos di para indicar el color 
+        mov es:[di], 00h                ;Que la pinte de color negro
+        inc di                          ;incrementamos di para pasar a la siguiente posicion del monitor
+    loop OtroCaracter                   ;Hasta que cx sea 0
+endM
+
+bucleProc macro 
+    push cx                             ;Guardamos lo que tenga el registro
+    mov cx, bucleNum                    ;Movemos la cantidad de veces que debemos hacer el ciclo
+    bucle2:
+        loop bucle2                     ;Hasta que cx sea 0
+    pop cx                              ;volvemos a obtener lo que tenia cx
+endM
+
+esperarMacro macro
+    push cx                             ;Guardamos registro
+    mov cx, 8                           ;Movemos la cantidad de veces que debemos hacer el ciclo
+    esperar5:
+        bucleProc                       ;Llama a la macro que hace otro bucle
+    loop esperar5                       ;Hace el ciclo hasta que cx sea 0
+    pop cx                              ;Volvemos a obtener lo que tenia cx
+endM
+
+;Se hara una explicacion general de lo que hacen las siguientes macros pues no es necesario comentar cada paso pues son repetitivos 
+;Practicamente se hace lo mismo en todos, solo se van cambiando las posiciones. Ya sea sumando o restando
+
+;-------------------------Lo que hace esta macro es desplegar ascii en posiciones especificas del monitor----------------------------
+
+;Se hace para tener un mayor control y que no se vea mal a la hora de desplegar
+;Le sumamos x posiciones a la posicion original que tiene di
+;Llama al procedimiento que despliega un caracter en negro en la posicion indicada por el di actual
+
+pintaCuarto Macro
+    push di                         
+
+    add di, 16                          
+    call despliegueNegro                
+    add di, 24
+    call despliegueNegro
+    add di, 8
+    call despliegueNegro
+    add di, 48
+    call despliegueNegro
+    add di, 32
+    call despliegueNegro
+    add di, 16
+    call despliegueNegro
+
+    pop di
+
+    add di, 24
+    call despliegueNegro
+    add di, 48
+    call despliegueNegro
+    add di, 32
+    call despliegueNegro
+    add di, 30
+    call despliegueNegro
+    
+endM
+
+pintaTercero macro
+    push di
+
+    call despliegueNegro
+    add di, 12
+    call despliegueNegro
+    add di, 32
+    call despliegueNegro
+    add di, 16
+    call despliegueNegro
+    add di, 32
+    call despliegueNegro
+    add di, 8
+    call despliegueNegro
+
+    pop di
+
+    sub di, 18
+    call despliegueVerde
+    add di, 6
+    call despliegueVerde
+    add di, 36
+    call despliegueVerde
+    add di, 10
+    call despliegueVerde
+    add di, 30
+    call despliegueVerde
+    add di, 68
+    call despliegueVerde
+
+endM
+
+pintaQuinto macro
+    add di, 2
+    call despliegueNegro
+    add di, 6
+    call despliegueNegro
+    add di, 36
+    call despliegueNegro
+    add di, 10
+    call despliegueNegro
+    add di, 30
+    call despliegueNegro
+    add di, 68
+    call despliegueNegro
+endM
+
+pintaUltimo macro
+    add di, 24
+    call despliegueVerde
+    add di, 48
+    call despliegueVerde
+    add di, 32
+    call despliegueVerde
+    add di, 30
+    call despliegueVerde
+endM
